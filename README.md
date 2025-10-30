@@ -104,6 +104,23 @@ FLASK_ENV=development
 
 ---
 
-Licença
+## Regras de negócio
+-   `kd_ratio = kills / max(deaths,1)`
+-   `hours`: parse de `"152h"` para inteiro.
+
+### Classificação:
+-   Novato: ≤10 h
+-   Veterano: 10–50 h
+-   Elite: >50 h e `kd_ratio ≥ 2.0`
+-   `accuracy_level: low(<15%), medium(15–25%), high(>25%)`.
+
+### Endpoints
+-   `POST /analyze-player` → 202 Accepted `{request_id}`
+-   `GET /player/<player_name>?platform=pc` → documento de `players_analyzed`
+-   `GET /ranking?top=10` → top-N por `kd_ratio` com `player_name, kd_ratio, classification`.
+
+---
+
+## Licença
 
 Projeto educacional e não comercial, para estudo e experimentação.
