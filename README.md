@@ -80,8 +80,8 @@ O projeto segue uma **arquitetura modular baseada em microserviços**, com comun
 Variáveis de Ambiente
 Crie um `.env` na raiz baseada em `.env.example`:
 ```ini
-MONGODB_URI=mongodb://mongodb:27017/bf_stats
-AMQP_URL=amqp://guest:guest@rabbitmq:5672/
+MONGODB_URI=mongodb://<usuario>:<senha>@mongodb:27017/bf_stats
+AMQP_URL=amqp://<usuario>:<senha>@rabbitmq:5672/
 FLASK_ENV=development
 ```
 
