@@ -49,26 +49,31 @@ O projeto segue uma **arquitetura modular baseada em microserviços**, com comun
 ---
 
 ## Estrutura de Pastas
+```
 .
-├── api/                  → API Flask (entrada de dados e consulta) |
-│    ├── app.py  |                                                 
-│    ├── routes/ |
-│    └── services/ |
-│    │       ├── db.py |
-│    │       └── mq.py |
-├── worker_scraper/       → Worker de scraping (fila 'scraping') |
-│    ├── main.py |
-│    └── scrapers/ |
-│          ├── tracker_scraper.py |
-│          └── mocks/ |
-│                └── mock_response.json |
-├── worker_analyzer/      → Worker de análise (fila 'analysis') |
-│    ├── main.py |
-│    └── analyzer/ |
-│          └── stats_processor.py |
-├── docker-compose.yml |
-├── .env.example |
-└── README.md |
+├── api/                  → API Flask (entrada de dados e consulta)
+│    ├── app.py
+│    ├── routes/
+│    └── services/
+│         ├── db.py
+│         └── mq.py
+│
+├── worker_scraper/       → Worker de scraping (fila 'scraping')
+│    ├── main.py
+│    └── scrapers/
+│         ├── tracker_scraper.py
+│         └── mocks/
+│              └── mock_response.json
+│
+├── worker_analyzer/      → Worker de análise (fila 'analysis')
+│    ├── main.py
+│    └── analyzer/
+│         └── stats_processor.py
+│
+├── docker-compose.yml
+├── .env.example
+└── README.md
+```
 
 ---
 
@@ -97,9 +102,8 @@ FLASK_ENV=development
   docker compose down
 ```
 
+---
 
---------------------------------------------------------------
-
-🧭 Licença
+Licença
 
 Projeto educacional e não comercial, para estudo e experimentação.
