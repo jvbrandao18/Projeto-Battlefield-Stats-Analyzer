@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # --- O Cérebro das Mensagens (RabbitMQ) ---
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: battlefield_rabbitmq
+    ports:
+      - "5672:5672"   # Porta para nosso código Python usar
+      - "15672:15672" # Porta para o painel visual no navegador
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - bf_net
+    healthcheck:
+        test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+
+  # --- O Cofre de Dados (MongoDB) ---
+  mongodb:
+    image: mongo:latest
+    container_name: battlefield_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - bf_net
+
+networks:
+  bf_net:
+    driver: bridge
+
+volumes:
+  mongo_data:
