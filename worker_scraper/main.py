@@ -4,25 +4,19 @@ import time
 import random
 from pymongo import MongoClient
 
-# Configuracoes de Conexao
+# Configuracoes
 RABBITMQ_HOST = 'localhost'
-QUEUE_NAME = 'scraping_queue'
+SCRAPING_QUEUE = 'scraping_queue'
+ANALYSIS_QUEUE = 'analysis_queue' # Nova fila
 MONGO_URI = 'mongodb://localhost:27017/'
 
 def get_db_connection():
-    """Conecta ao MongoDB"""
     client = MongoClient(MONGO_URI)
     return client['bf_stats_db']
 
 def mock_battlefield_api(player_name, platform):
-    """
-    SIMULACAO: Finge que vai numa API externa buscar dados.
-    Retorna dados aleatorios para podermos testar o sistema.
-    """
     print(f"DEBUG: Consultando API externa para {player_name}...")
-    time.sleep(2) # Simula o tempo de resposta da internet
-    
-    # Gera dados ficticios para teste
+    time.sleep(1) # Simula tempo de rede
     return {
         "player_name": player_name,
         "platform": platform,
@@ -39,53 +33,56 @@ def mock_battlefield_api(player_name, platform):
     }
 
 def callback(ch, method, properties, body):
-    """Funcao disparada quando chega uma mensagem na fila"""
     try:
-        # 1. Ler a mensagem
         message = json.loads(body)
         player = message.get('player_name')
         platform = message.get('platform')
         
-        print(f"Processando jogador: {player} na plataforma {platform}")
-
-        # 2. Coletar dados (Scraping)
+        print(f"Scraper: Processando {player}...")
         data = mock_battlefield_api(player, platform)
 
-        # 3. Salvar no MongoDB (Dados Brutos)
+        # Salvar no MongoDB
         db = get_db_connection()
         collection = db['raw_player_stats']
-        
-        # Inserimos os dados e adicionamos um timestamp
         data['created_at'] = time.time()
-        collection.insert_one(data)
         
-        print("Sucesso: Dados coletados e salvos no MongoDB.")
+        # Insert_one retorna o ID do documento criado
+        result = collection.insert_one(data)
+        document_id = str(result.inserted_id)
+        
+        print("Sucesso: Dados salvos no MongoDB.")
 
-        # 4. Confirmar para o RabbitMQ que a tarefa foi feita
-        # Isso remove a mensagem da fila
+        # --- NOVIDADE: Avisar o Analyzer ---
+        # Preparamos a mensagem para a proxima etapa
+        analysis_payload = {
+            "player_name": player,
+            "document_id": document_id
+        }
+
+        # Publicamos na fila de analise
+        ch.queue_declare(queue=ANALYSIS_QUEUE, durable=True)
+        ch.basic_publish(
+            exchange='',
+            routing_key=ANALYSIS_QUEUE,
+            body=json.dumps(analysis_payload),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+        print("Sucesso: Enviado para fila de analise.")
+        # -----------------------------------
+
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
-        print(f"Erro ao processar mensagem: {e}")
-        # Em caso de erro, nao enviamos o 'ack', entao a mensagem volta para a fila depois
+        print(f"Erro no Scraper: {e}")
 
 def start_worker():
-    """Inicia o loop do Worker"""
     print("Iniciando Worker Scraper...")
-    
     connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
     channel = connection.channel()
-
-    # Garante que a fila existe
-    channel.queue_declare(queue=QUEUE_NAME, durable=True)
-
-    # Define que so pega 1 tarefa por vez (para nao sobrecarregar)
+    channel.queue_declare(queue=SCRAPING_QUEUE, durable=True)
     channel.basic_qos(prefetch_count=1)
-
-    # Configura o consumo
-    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
-
-    print("Aguardando mensagens na fila scraping_queue. Para sair pressione CTRL+C")
+    channel.basic_consume(queue=SCRAPING_QUEUE, on_message_callback=callback)
+    print("Aguardando mensagens na fila scraping_queue...")
     channel.start_consuming()
 
 if __name__ == '__main__':
