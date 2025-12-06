@@ -1,46 +1,62 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import pika
+import json
 from pymongo import MongoClient
 
 app = Flask(__name__)
 
-# Configurações de conexão (apontando para o seu Docker local)
+# Configurações
 RABBITMQ_HOST = 'localhost'
+QUEUE_NAME = 'scraping_queue'
 MONGO_URI = 'mongodb://localhost:27017/'
 
 @app.route('/')
 def home():
-    """Rota simples para ver se a API está de pé"""
     return jsonify({
-        "projeto": "Battlefield Stats Analyzer",
-        "status": "Online 🚀",
-        "instrucao": "Acesse /test-connection para verificar o banco e a fila."
+        "status": "Online",
+        "mensagem": "API Battlefield Stats Analyzer pronta."
     })
 
-@app.route('/test-connection')
-def test_connection():
-    """Testa se conseguimos falar com o Docker"""
-    status = {"rabbitmq": "pendente", "mongodb": "pendente"}
+@app.route('/analyze-player', methods=['POST'])
+def analyze_player():
+    """
+    Recebe o pedido de analise e envia para a fila do RabbitMQ
+    """
+    data = request.get_json()
     
-    # 1. Testar RabbitMQ
+    # Validacao simples
+    if not data or 'player_name' not in data or 'platform' not in data:
+        return jsonify({"status": "Erro", "mensagem": "Campos 'player_name' e 'platform' sao obrigatorios."}), 400
+
+    player_name = data['player_name']
+    platform = data['platform']
+
     try:
+        # Conectar ao RabbitMQ
         connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
-        if connection.is_open:
-            status["rabbitmq"] = "Conectado com Sucesso! ✅"
-            connection.close()
-    except Exception as e:
-        status["rabbitmq"] = f"Erro: {str(e)} ❌"
+        channel = connection.channel()
+        channel.queue_declare(queue=QUEUE_NAME, durable=True)
 
-    # 2. Testar MongoDB
-    try:
-        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=2000)
-        # O comando 'ping' força uma verificação real de conexão
-        client.admin.command('ping')
-        status["mongodb"] = "Conectado com Sucesso! ✅"
-    except Exception as e:
-        status["mongodb"] = f"Erro: {str(e)} ❌"
+        # Preparar a mensagem
+        task_payload = {
+            "player_name": player_name,
+            "platform": platform,
+            "status": "pendente"
+        }
+        
+        # Publicar na fila
+        channel.basic_publish(
+            exchange='',
+            routing_key=QUEUE_NAME,
+            body=json.dumps(task_payload),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
 
-    return jsonify(status)
+        connection.close()
+        return jsonify({"status": "Sucesso", "mensagem": f"Jogador {player_name} enviado para analise."}), 202
+
+    except Exception as e:
+        return jsonify({"status": "Erro", "detalhe": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
