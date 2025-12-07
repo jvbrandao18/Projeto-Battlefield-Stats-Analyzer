@@ -1,10 +1,10 @@
 # Battlefield Stats Analyzer
 
-![Python](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python)
-![Flask](https://img.shields.io/badge/Flask-API-lightgrey?logo=flask)
-![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)
-![MongoDB](https://img.shields.io/badge/MongoDB-Database-green?logo=mongodb)
-![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Queue-orange?logo=rabbitmq)
+![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
+![Flask](https://img.shields.io/badge/Flask-API-green.svg)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Messaging-orange.svg)
+![MongoDB](https://img.shields.io/badge/MongoDB-Database-green.svg)
+![Docker](https://img.shields.io/badge/Docker-Container-blue.svg)
 
 ---
 
@@ -17,13 +17,12 @@ O objetivo é **coletar e analisar estatísticas de jogadores**, classificando a
 ## Arquitetura
 O projeto segue uma **arquitetura modular baseada em microserviços**, com comunicação assíncrona via **RabbitMQ**:
 
-| Componente | Função |
-|-------------|--------|
-| **API** | Endpoint Flask responsável por receber requisições e publicar mensagens nas filas. |
-| **Worker Scraper** | Obtém dados do jogador via API (ou mock) e armazena no banco. |
-| **Worker Analyzer** | Processa e classifica os dados brutos em métricas consolidadas. |
-| **RabbitMQ** | Fila de mensagens para desacoplamento dos serviços. |
-| **MongoDB** | Banco NoSQL para armazenamento dos dados coletados e analisados. |
+**Fluxo de Dados:**
+1.  **API (Flask):** Recebe o pedido de análise do usuário.
+2.  **RabbitMQ (Scraping Queue):** Enfileira o pedido.
+3.  **Worker Scraper:** Consome a fila, coleta dados (Mock/API Externa) e salva dados brutos no MongoDB.
+4.  **RabbitMQ (Analysis Queue):** Notifica que há novos dados.
+5.  **Worker Analyzer:** Processa os dados brutos, calcula KD Ratio, define a Patente (Novato/Veterano/Elite) e atualiza o banco.
 
 ---
 
@@ -77,8 +76,9 @@ O projeto segue uma **arquitetura modular baseada em microserviços**, com comun
 
 ---
 
-Variáveis de Ambiente
+## Variáveis de Ambiente
 Crie um `.env` na raiz baseada em `.env.example`:
+
 ```ini
 MONGODB_URI=mongodb://<usuario>:<senha>@mongodb:27017/bf_stats
 AMQP_URL=amqp://<usuario>:<senha>@rabbitmq:5672/
@@ -87,40 +87,57 @@ FLASK_ENV=development
 
 ---
 
-## Execução com Docker
-### 1. Build e subida:
-  ```bash
-  docker compose up -d --build
-  ```
-### 2. Logs:
+## Como Rodar o Projeto
+
+### Pré-requisitos
+* Docker e Docker Compose
+* Python 3.10+ (Opcional, se quiser rodar scripts locais fora do Docker)
+
+### Passo a Passo
+
+1.  **Clone o repositório**
+    ```bash
+    git clone [https://github.com/seu-usuario/battlefield-stats-analyzer.git](https://github.com/seu-usuario/battlefield-stats-analyzer.git)
+    cd battlefield-stats-analyzer
+    ```
+
+2.  **Suba a Infraestrutura (RabbitMQ + MongoDB)**
+    ```bash
+    docker compose up -d
+    ```
+
+3.  **Configure o Ambiente Python (Local)**
+    ```bash
+    python -m venv venv
+    # Windows
+    .\venv\Scripts\activate
+    # Linux/Mac
+    source venv/bin/activate
+    
+    pip install flask pika pymongo requests
+    ```
+
+4.  **Inicie os Serviços (Em terminais separados)**
+    * **Terminal 1 (API):** `python api/app.py`
+    * **Terminal 2 (Scraper):** `python worker_scraper/main.py`
+    * **Terminal 3 (Analyzer):** `python worker_analyzer/main.py`
+
+## Endpoints da API
+
+| Método | Rota | Descrição | Exemplo de Body |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/analyze-player` | Envia jogador para análise | `{"player_name": "Nick", "platform": "pc"}` |
+| `GET` | `/player/<nome>` | Retorna ficha do jogador | - |
+| `GET` | `/ranking` | Retorna Top 10 (KD Ratio) | - |
+
+## Exemplo de Uso
+
+**1. Solicitar Análise:**
 ```bash
-  docker compose logs -f api worker_scraper worker_analyzer
+curl -X POST http://localhost:5000/analyze-player \
+     -H "Content-Type: application/json" \
+     -d '{"player_name":"Soldado01","platform":"pc"}'
 ```
-
-### 3. Parada:
-```bash
-  docker compose down
-```
-
----
-
-## Regras de negócio
--   `kd_ratio = kills / max(deaths,1)`
--   `hours`: parse de `"152h"` para inteiro.
-
-### Classificação:
--   Novato: ≤10 h
--   Veterano: 10–50 h
--   Elite: >50 h e `kd_ratio ≥ 2.0`
--   `accuracy_level: low(<15%), medium(15–25%), high(>25%)`.
-
-### Endpoints
--   `POST /analyze-player` → 202 Accepted `{request_id}`
--   `GET /player/<player_name>?platform=pc` → documento de `players_analyzed`
--   `GET /ranking?top=10` → top-N por `kd_ratio` com `player_name, kd_ratio, classification`.
-
----
-
 ## Licença
 
-Projeto educacional e não comercial, para estudo e experimentação.
+Projeto educacional e não comercial, uso *exclusivo* para estudo e experimentação.
